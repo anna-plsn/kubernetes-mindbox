@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app-deployment
+  labels:
+    app: web-app
+spec:
+  replicas: 4 # начальное количество подов, которое справляется с пиковой нагрузкой
+  strategy: 
+    type: RollingUpdate # тип обновления, чтобы минимизировать время простоя
+    rollingUpdate:
+      maxUnavailable: 1 # максимальное количество недоступных подов во время обновления
+      maxSurge: 1 # максимальное количество подов, которые можно добавить сверх желаемого числа подов
+  selector:
+    matchLabels:
+      app: web-app
+  template:
+    metadata:
+      labels:
+        app: web-app
+    spec:
+      containers:
+      - name: web-app-container
+        image: nginx:1.25.3
+        resources:
+          requests: # минимальные ресурсы, необходимые для работы контейнера
+            cpu: "0.1"
+            memory: "128Mi"
+          limits: # максимальное количество ресурсов, которое контейнер может использовать
+            cpu: "0.5"
+            memory: "256Mi"
+        readinessProbe: # проверка готовности приложения к обработке запросов
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 10 # учитывая, что приложение требует около 5-10 секунд для инициализации
+          periodSeconds: 5
+        livenessProbe: # проверка работоспособности приложения
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 15 # учитывая, что приложение требует около 5-10 секунд для инициализации
+          periodSeconds: 5
+      affinity:
+        podAntiAffinity: # размещение подов на разных нодах для обеспечения отказоустойчивости
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - web-app
+              topologyKey: "kubernetes.io/hostname"
